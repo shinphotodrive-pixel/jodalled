@@ -1,0 +1,6 @@
+{
+  "name": "무인교통단속장비 광학·조명 기술분석 대시보드",
+  "description": "지능형 교통 시스템(ITS) LED 스트로보 및 적외선 광학 아키텍처 기술 분석 대시보드",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
