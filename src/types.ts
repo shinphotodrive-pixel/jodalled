@@ -65,6 +65,8 @@ export interface SceneProduct {
   peakPower: string;
   powerWattsNum?: number;
   fluxLmNum?: number;
+  beamAngleMinDeg?: number;
+  beamAngleMaxDeg?: number;
   triggerSync: string;
   protectionRating: string;
   operatingTemp: string;

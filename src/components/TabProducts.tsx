@@ -11,13 +11,23 @@ import {
   Sun,
   Compass,
   BarChart3,
-  ListFilter,
-  Check,
   TrendingUp,
-  SlidersHorizontal,
   Table as TableIcon,
-  LayoutGrid
+  Activity,
+  Layers,
+  SlidersHorizontal
 } from 'lucide-react';
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  Legend as RechartsLegend,
+  Cell
+} from 'recharts';
 import { sceneProductsData } from '../data/sceneProductsData';
 import { SceneProduct } from '../types';
 
@@ -26,7 +36,7 @@ export const TabProducts: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [activeProduct, setActiveProduct] = useState<SceneProduct>(sceneProductsData[0]);
   const [selectedLedFilter, setSelectedLedFilter] = useState<string>('all');
-  const [viewMode, setViewMode] = useState<'both' | 'table-focused' | 'cards-focused'>('both');
+  const [chartMetric, setChartMetric] = useState<'all' | 'flux' | 'power' | 'angle'>('all');
   const [sortField, setSortField] = useState<'model' | 'ledCount' | 'fluxLmNum' | 'powerWattsNum'>('fluxLmNum');
   const [sortAsc, setSortAsc] = useState<boolean>(false);
 
@@ -36,6 +46,25 @@ export const TabProducts: React.FC = () => {
     { id: 'dual-hybrid', label: 'IR+화이트 듀얼 복합' },
     { id: 'housing-integrated', label: '하우징 일체형' }
   ];
+
+  // Prepare data for Recharts Bar Chart
+  const rechartsData = sceneProductsData.map((p) => {
+    // extract peak watts as number
+    const peakNum = parseInt(p.peakPower.replace(/\D/g, '')) || 180;
+    return {
+      id: p.id,
+      name: p.model.replace('S-SZN Series Housing Integrated White', 'Housing-W').replace('S-SZN', ''),
+      fullModel: p.model,
+      nameKr: p.nameKr,
+      luminousFlux: p.fluxLmNum || 3000,
+      averagePower: p.powerWattsNum || 35,
+      peakPower: peakNum,
+      minBeamAngle: p.beamAngleMinDeg || 10,
+      maxBeamAngle: p.beamAngleMaxDeg || 45,
+      ledCount: p.ledCount,
+      rawProduct: p
+    };
+  });
 
   const filteredProducts = sceneProductsData
     .filter((p) => {
@@ -71,8 +100,54 @@ export const TabProducts: React.FC = () => {
       setSortAsc(!sortAsc);
     } else {
       setSortField(field);
-      setSortAsc(false); // default descending for metrics
+      setSortAsc(false);
     }
+  };
+
+  // Custom Tooltip for Recharts
+  const CustomRechartsTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      return (
+        <div className="bg-slate-900/95 backdrop-blur-md text-white p-3 rounded-xl border border-slate-700 shadow-xl text-xs space-y-1.5 max-w-xs z-50">
+          <div className="flex items-center justify-between border-b border-slate-700 pb-1.5 gap-2">
+            <strong className="text-blue-400 font-bold">{data.fullModel}</strong>
+            <span className="text-[10px] text-slate-400 font-mono">{data.ledCount}구 LED</span>
+          </div>
+          <p className="text-[11px] text-slate-300 line-clamp-1">{data.nameKr}</p>
+          <div className="space-y-1 pt-1 font-mono text-[11px]">
+            <div className="flex justify-between items-center text-amber-300">
+              <span className="flex items-center gap-1 font-sans">
+                <Sun className="w-3 h-3 text-amber-400" /> 광속 (Flux):
+              </span>
+              <strong>{data.luminousFlux.toLocaleString()} lm</strong>
+            </div>
+            <div className="flex justify-between items-center text-emerald-300">
+              <span className="flex items-center gap-1 font-sans">
+                <Zap className="w-3 h-3 text-emerald-400" /> 평균 전력:
+              </span>
+              <strong>{data.averagePower} W</strong>
+            </div>
+            <div className="flex justify-between items-center text-orange-300">
+              <span className="flex items-center gap-1 font-sans">
+                <Zap className="w-3 h-3 text-orange-400" /> 피크 전력:
+              </span>
+              <strong>{data.peakPower} W</strong>
+            </div>
+            <div className="flex justify-between items-center text-blue-300">
+              <span className="flex items-center gap-1 font-sans">
+                <Compass className="w-3 h-3 text-blue-400" /> 발광각 (범위):
+              </span>
+              <strong>{data.minBeamAngle}° ~ {data.maxBeamAngle}°</strong>
+            </div>
+          </div>
+          <div className="text-[10px] text-slate-400 pt-1 border-t border-slate-800 text-center">
+            클릭 시 우측 상세 스펙 인스펙터로 이동
+          </div>
+        </div>
+      );
+    }
+    return null;
   };
 
   return (
@@ -125,16 +200,257 @@ export const TabProducts: React.FC = () => {
         </div>
       </div>
 
-      {/* NEW: Core Optical Benchmark Matrix Table (대시보드 비교 테이블) */}
+      {/* NEW: Recharts Bar Chart Visual Comparison Component */}
+      <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 sm:p-5 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 bg-indigo-600 text-white rounded-lg shadow-sm">
+                <BarChart3 className="w-4 h-4" />
+              </span>
+              <h3 className="font-extrabold text-slate-900 text-sm sm:text-base">
+                Recharts 기반 주요 조명 규격(광속 · 소비전력 · 발광각) 시각적 비교 차트
+              </h3>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              모델별 광학 출력량(루멘 lm), 전력 소모량(W), 렌즈 발광각(°) 간의 상관관계를 시각적 막대 그래프로 직관적 비교합니다.
+            </p>
+          </div>
+
+          {/* Metric Selector Tabs */}
+          <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs self-start sm:self-auto">
+            <button
+              onClick={() => setChartMetric('all')}
+              className={`px-2.5 py-1 rounded-md font-semibold transition ${
+                chartMetric === 'all'
+                  ? 'bg-white text-indigo-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              종합 규격
+            </button>
+            <button
+              onClick={() => setChartMetric('flux')}
+              className={`px-2.5 py-1 rounded-md font-semibold transition flex items-center gap-1 ${
+                chartMetric === 'flux'
+                  ? 'bg-amber-500 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Sun className="w-3 h-3" /> 광속 (lm)
+            </button>
+            <button
+              onClick={() => setChartMetric('power')}
+              className={`px-2.5 py-1 rounded-md font-semibold transition flex items-center gap-1 ${
+                chartMetric === 'power'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Zap className="w-3 h-3" /> 소비전력 (W)
+            </button>
+            <button
+              onClick={() => setChartMetric('angle')}
+              className={`px-2.5 py-1 rounded-md font-semibold transition flex items-center gap-1 ${
+                chartMetric === 'angle'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Compass className="w-3 h-3" /> 발광각 (°)
+            </button>
+          </div>
+        </div>
+
+        {/* Recharts Bar Chart Area */}
+        <div className="h-[310px] w-full pt-1">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={rechartsData}
+              margin={{ top: 15, right: 25, left: 0, bottom: 25 }}
+              onClick={(state: any) => {
+                if (state && state.activePayload && state.activePayload.length) {
+                  setActiveProduct(state.activePayload[0].payload.rawProduct);
+                }
+              }}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+              <XAxis
+                dataKey="name"
+                tick={{ fontSize: 11, fill: '#475569' }}
+                interval={0}
+                stroke="#cbd5e1"
+              />
+              {/* Dual Y-Axes if 'all' view */}
+              {chartMetric === 'all' && (
+                <>
+                  <YAxis
+                    yAxisId="left"
+                    orientation="left"
+                    stroke="#d97706"
+                    tick={{ fontSize: 10, fill: '#b45309' }}
+                    domain={[0, 6500]}
+                    unit=" lm"
+                  />
+                  <YAxis
+                    yAxisId="right"
+                    orientation="right"
+                    stroke="#059669"
+                    tick={{ fontSize: 10, fill: '#047857' }}
+                    domain={[0, 260]}
+                    unit=" W"
+                  />
+                </>
+              )}
+              {chartMetric === 'flux' && (
+                <YAxis
+                  stroke="#d97706"
+                  tick={{ fontSize: 10, fill: '#b45309' }}
+                  domain={[0, 6500]}
+                  unit=" lm"
+                />
+              )}
+              {chartMetric === 'power' && (
+                <YAxis
+                  stroke="#059669"
+                  tick={{ fontSize: 10, fill: '#047857' }}
+                  domain={[0, 260]}
+                  unit=" W"
+                />
+              )}
+              {chartMetric === 'angle' && (
+                <YAxis
+                  stroke="#2563eb"
+                  tick={{ fontSize: 10, fill: '#1d4ed8' }}
+                  domain={[0, 70]}
+                  unit="°"
+                />
+              )}
+
+              <RechartsTooltip content={<CustomRechartsTooltip />} cursor={{ fill: 'rgba(241, 245, 249, 0.6)' }} />
+              <RechartsLegend
+                verticalAlign="top"
+                height={32}
+                iconType="circle"
+                wrapperStyle={{ fontSize: '11px', fontWeight: 600 }}
+              />
+
+              {/* Conditional Bars */}
+              {(chartMetric === 'all' || chartMetric === 'flux') && (
+                <Bar
+                  yAxisId={chartMetric === 'all' ? 'left' : undefined}
+                  dataKey="luminousFlux"
+                  name="광속 (Luminous Flux / lm)"
+                  fill="#f59e0b"
+                  radius={[4, 4, 0, 0]}
+                  barSize={chartMetric === 'flux' ? 36 : 20}
+                >
+                  {rechartsData.map((entry) => (
+                    <Cell
+                      key={`flux-${entry.id}`}
+                      fill={activeProduct.id === entry.id ? '#d97706' : '#f59e0b'}
+                      stroke={activeProduct.id === entry.id ? '#78350f' : undefined}
+                      strokeWidth={activeProduct.id === entry.id ? 2 : 0}
+                    />
+                  ))}
+                </Bar>
+              )}
+
+              {(chartMetric === 'all' || chartMetric === 'power') && (
+                <Bar
+                  yAxisId={chartMetric === 'all' ? 'right' : undefined}
+                  dataKey="averagePower"
+                  name="평균 소비전력 (Average / W)"
+                  fill="#10b981"
+                  radius={[4, 4, 0, 0]}
+                  barSize={chartMetric === 'power' ? 24 : 16}
+                >
+                  {rechartsData.map((entry) => (
+                    <Cell
+                      key={`avg-${entry.id}`}
+                      fill={activeProduct.id === entry.id ? '#059669' : '#10b981'}
+                    />
+                  ))}
+                </Bar>
+              )}
+
+              {chartMetric === 'power' && (
+                <Bar
+                  dataKey="peakPower"
+                  name="피크 소비전력 (Peak / W)"
+                  fill="#f97316"
+                  radius={[4, 4, 0, 0]}
+                  barSize={24}
+                />
+              )}
+
+              {(chartMetric === 'all' || chartMetric === 'angle') && (
+                <Bar
+                  yAxisId={chartMetric === 'all' ? 'right' : undefined}
+                  dataKey="maxBeamAngle"
+                  name="최대 발광각 (Max Beam Angle / °)"
+                  fill="#3b82f6"
+                  radius={[4, 4, 0, 0]}
+                  barSize={chartMetric === 'angle' ? 32 : 14}
+                >
+                  {rechartsData.map((entry) => (
+                    <Cell
+                      key={`angle-${entry.id}`}
+                      fill={activeProduct.id === entry.id ? '#1d4ed8' : '#3b82f6'}
+                    />
+                  ))}
+                </Bar>
+              )}
+
+              {chartMetric === 'angle' && (
+                <Bar
+                  dataKey="minBeamAngle"
+                  name="최소 스팟각 (Spot Angle / °)"
+                  fill="#60a5fa"
+                  radius={[4, 4, 0, 0]}
+                  barSize={32}
+                />
+              )}
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Visual Chart Analysis Insight */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs">
+          <div className="p-2.5 bg-amber-50/70 border border-amber-200/80 rounded-lg flex items-start gap-2">
+            <Sun className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <strong className="text-amber-950 block">광속 최고점: S-SZN3142-W</strong>
+              <span className="text-slate-600 text-[11px]">42구 고출력으로 5,800 lm 달성 (고속 3차선 40m 투사)</span>
+            </div>
+          </div>
+          <div className="p-2.5 bg-emerald-50/70 border border-emerald-200/80 rounded-lg flex items-start gap-2">
+            <Zap className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+            <div>
+              <strong className="text-emerald-950 block">전력 효율 최적: S-SZN3116-W</strong>
+              <span className="text-slate-600 text-[11px]">평균 20W 미만으로 배터리/태양광 이동 단속기에 특화</span>
+            </div>
+          </div>
+          <div className="p-2.5 bg-blue-50/70 border border-blue-200/80 rounded-lg flex items-start gap-2">
+            <Compass className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+            <div>
+              <strong className="text-blue-950 block">가변 조사각: 10° ~ 60°</strong>
+              <span className="text-slate-600 text-[11px]">단속 거리에 맞춰 좁은 스팟(10°)부터 광각(60°) 선택 가능</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Core Optical Benchmark Matrix Table (대시보드 비교 테이블) */}
       <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-50 via-white to-blue-50/30 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
               <span className="p-1.5 bg-blue-600 text-white rounded-lg shadow-sm">
-                <BarChart3 className="w-4 h-4" />
+                <TableIcon className="w-4 h-4" />
               </span>
               <h3 className="font-extrabold text-slate-900 text-sm sm:text-base">
-                주요 조명 규격(광속 · 소비전력 · 발광각) 종합 비교 대시보드
+                주요 조명 규격(광속 · 소비전력 · 발광각) 종합 비교 대시보드 테이블
               </h3>
             </div>
             <p className="text-xs text-slate-500 mt-1">
@@ -317,7 +633,7 @@ export const TabProducts: React.FC = () => {
             <span className="text-blue-600 font-bold">💡 실무 엔지니어링 가이드:</span>
             <span>고속도로 다차선(3차선)은 10° 렌즈·42구(S-SZN3142-W)가 필수이며, 도심 교차로·스쿨존은 28구(S-SZN3128-W) 또는 듀얼 하이브리드가 추천됩니다.</span>
           </div>
-          <span className="text-slate-400 font-mono text-[11px] shrink-0">클릭하여 우측 상세 스펙 뷰 연동</span>
+          <span className="text-slate-400 font-mono text-[11px] shrink-0">행 클릭 시 하단/우측 상세 스펙 연동</span>
         </div>
       </section>
 
